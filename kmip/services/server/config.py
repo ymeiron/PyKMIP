@@ -40,6 +40,7 @@ class KmipServerConfig(object):
         self.settings['tls_cipher_suites'] = []
         self.settings['logging_level'] = logging.INFO
         self.settings['auth_plugins'] = []
+        self.settings['enable_crl_check'] = False
 
         self._expected_settings = [
             'hostname',
@@ -55,7 +56,8 @@ class KmipServerConfig(object):
             'enable_tls_client_auth',
             'tls_cipher_suites',
             'logging_level',
-            'database_password'
+            'database_password',
+            'enable_crl_check'
         ]
 
     def _get_shards(self):
@@ -270,6 +272,10 @@ class KmipServerConfig(object):
             self._set_database_path(parser.get('server', 'database_path'))
         if parser.has_option('server', 'database_password'):
             self._set_database_password(parser.get('server', 'database_password'))
+        if parser.has_option('server', 'enable_crl_check'):
+            self._set_enable_crl_check(
+                parser.getboolean('server', 'enable_crl_check')
+            )
 
     def _set_hostname(self, value):
         if isinstance(value, six.string_types):
@@ -446,4 +452,14 @@ class KmipServerConfig(object):
         else:
             raise exceptions.ConfigurationError(
                 "The database password is an invalid string."
+            )
+
+    def _set_enable_crl_check(self, value):
+        if value is None:
+            self.settings['enable_crl_check'] = False
+        elif isinstance(value, bool):
+            self.settings['enable_crl_check'] = value
+        else:
+            raise exceptions.ConfigurationError(
+                "The flag enabling the CRL check must be a boolean."
             )

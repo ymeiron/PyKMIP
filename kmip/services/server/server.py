@@ -62,7 +62,8 @@ class KmipServer(object):
             logging_level=None,
             live_policies=False,
             database_path=None,
-            database_password='pykmip'
+            database_password='pykmip',
+            enable_crl_check=None
     ):
         """
         Create a KmipServer.
@@ -148,7 +149,8 @@ class KmipServer(object):
             tls_cipher_suites,
             logging_level,
             database_path,
-            database_password
+            database_password,
+            enable_crl_check
         )
         self.live_policies = live_policies
         self.policies = {}
@@ -199,7 +201,8 @@ class KmipServer(object):
             tls_cipher_suites=None,
             logging_level=None,
             database_path=None,
-            database_password="pykmip"
+            database_password="pykmip",
+            enable_crl_check=None
     ):
         if path:
             self.config.load_settings(path)
@@ -471,7 +474,8 @@ class KmipServer(object):
                 enable_tls_client_auth=self.config.settings.get(
                     'enable_tls_client_auth'
                 ),
-                auth_settings=self.config.settings.get('auth_plugins')
+                auth_settings=self.config.settings.get('auth_plugins'),
+                enable_crl_check=self.config.settings.get('enable_crl_check')
             )
             s.daemon = True
             s.start()

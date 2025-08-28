@@ -45,7 +45,8 @@ class KmipSession(threading.Thread):
                  address,
                  name=None,
                  enable_tls_client_auth=True,
-                 auth_settings=None):
+                 auth_settings=None,
+                 enable_crl_check=None):
         """
         Create a KmipSession.
 
@@ -67,6 +68,8 @@ class KmipSession(threading.Thread):
                 name of the 'auth:' settings block from the server config file,
                 and (2) a dictionary of configuration settings for a specific
                 authentication plugin. Optional, defaults to None.
+            enable_crl_check (bool): A flag that enables CRL check. Optional,
+                defaults to False.
         """
         super(KmipSession, self).__init__(
             group=None,
@@ -91,6 +94,8 @@ class KmipSession(threading.Thread):
         self._max_buffer_size = 4096
         self._max_request_size = 1048576
         self._max_response_size = 1048576
+
+        self._enable_crl_check = enable_crl_check
 
     def run(self):
         """
@@ -158,13 +163,14 @@ class KmipSession(threading.Thread):
                     "session connection."
                 )
 
-            try:
-              check_revoked_crypto_cert(certificate)
-              # we only return None if it's revoked
-            except Revoked as e:
-                raise exceptions.PermissionDenied(
-                    "The client certificate is revoked."
-                )
+            if self._enable_crl_check:
+                try:
+                    check_revoked_crypto_cert(certificate)
+                # we only return None if it's revoked
+                except Revoked as e:
+                    raise exceptions.PermissionDenied(
+                        "The client certificate is revoked."
+                    )
 
             if self._enable_tls_client_auth:
                 extension = auth.get_extended_key_usage_from_certificate(
