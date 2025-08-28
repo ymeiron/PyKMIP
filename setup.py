@@ -55,7 +55,10 @@ setuptools.setup(
         "enum-compat",
         "requests",
         "six",
-        "sqlalchemy"
+        "sqlalchemy",
+        "sqlcipher3-binary",
+        "pycryptodome",
+        "crl-checker"
     ],
     python_requires=">= 3.8",
     classifiers=[
