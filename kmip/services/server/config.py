@@ -16,13 +16,9 @@
 import logging
 import os
 import six
-import socket
-import re
-import binascii
-from Crypto.Protocol.SecretSharing import Shamir
-from sqlcipher3 import dbapi2 as sqlcipher
 from six.moves import configparser
 from kmip.core import exceptions
+from kmip.services.sss import Sss_listener
 
 class KmipServerConfig(object):
     """
@@ -61,82 +57,11 @@ class KmipServerConfig(object):
         ]
 
     def _get_shards(self):
-       server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-       server.setblocking(False)
-       server.bind(('localhost', 5066))
-       server.listen(5)
-
-       shares = []
-       connections = []
-       i=0
-       # well-formed shard
-       wfs=re.compile(r'^\d+,([0-9a-fA-F]+)$')
-       done=False
-
-       print("Please telnet localhost 5066 # type the shards, when all the shards are entered, type commit.\n")
-       while not done:
-         try:
-           connection, address = server.accept()
-           connection.setblocking(False)
-           connections.append(connection)
-         except BlockingIOError:
-           pass
-
-         for connection in connections:
-           try:
-             message = connection.recv(4096).strip()
-             if message == b'commit': 
-               try:
-                 pwb = Shamir.combine(shares)
-                 pw=binascii.hexlify(pwb).decode('ascii')
-                 self._logger.info(
-                     "Shards completed."
-                 )
-                 # debug
-                 #print(f'Password: {pw}')
-                 db = sqlcipher.connect(self.settings['database_path']) # assuming it has been set
-                 db.execute(f"pragma key='{pw}';")
-                 try:
-                     db.execute('select * from sqlite_master;').fetchall()
-                     db.close()
-                     done=True
-                 except sqlcipher.Error as er:
-                     # failed to decrypt databases, start over
-                     i=0
-                     shares=[]
-                     self._logger.info(
-                         "SQLite error {0}".format(' '.join(er.args))
-                     )
-                     connection.send(f"SQLite error: {' '.join(er.args)}! Please try again.\n".encode())
-                     print('SQLite error: %s' % (' '.join(er.args)))
-
-               except Exception as e:
-                 connection.send(f"Failed to assemble shards: {e}! Please try again.\n".encode())
-                 i=0
-                 shares=[]
-                 pass
-             else:
-               try:
-                 if wfs.match(message.decode('ascii')):
-                   print(f'Got shard#{i}.')
-                   sh = message.decode('ascii').split(',')
-                   try:
-                     shares.append((int(sh[0]), binascii.unhexlify(sh[1])))
-                     i=i+1
-                     self._logger.info(
-                         "Shard #{0} entered.".format(sh[0])
-                     )
-                   except Exception as e:
-                     connection.send(f"not a shard of known command or error {e}!\n".encode())
-                     pass
-                 else:
-                   connection.send(f"Not a shard or a known command!\n".encode())
-               except Exception as e:
-                 pass
-
-           except BlockingIOError:
-             continue
-       server.shutdown(2)
+       listener = Sss_listener(self.settings['database_path'], self._logger)
+       message = 'Please telnet localhost 5066 # type the shards, when all the shards are entered, type commit.'
+       print(message)
+       self._logger.info(message)
+       pw = listener.listen()
        return pw
         
     def set_setting(self, setting, value):
