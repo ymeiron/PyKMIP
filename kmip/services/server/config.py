@@ -18,7 +18,7 @@ import os
 import six
 from six.moves import configparser
 from kmip.core import exceptions
-from kmip.services.sss import Sss_listener
+from kmip.services.sss import Sss
 
 class KmipServerConfig(object):
     """
@@ -57,12 +57,8 @@ class KmipServerConfig(object):
         ]
 
     def _get_shards(self):
-       listener = Sss_listener(self.settings['database_path'], self._logger)
-       message = 'Please telnet localhost 5066 # type the shards, when all the shards are entered, type commit.'
-       print(message)
-       self._logger.info(message)
-       pw = listener.listen()
-       return pw
+        pw = Sss(self.settings['database_path'], self._logger)()
+        return pw
         
     def set_setting(self, setting, value):
         """

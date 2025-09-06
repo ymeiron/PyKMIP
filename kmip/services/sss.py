@@ -1,26 +1,47 @@
-import socket
+import asyncio
 import re
 import binascii
+from logging import Logger
 from Crypto.Protocol.SecretSharing import Shamir
 from sqlcipher3 import dbapi2 as sqlcipher
 
-class Sss_listener:
-    def __init__(self, db_path, logger=None):
+class Sss:
+    def __init__(self, db_path : str, logger : Logger):
         self.db_path = db_path
         self.logger = logger
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.setblocking(False)
-        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server.bind(('localhost', 5066))
-        self.server.listen(5)
-    
-    def combine_shares(self, shares):
-        pwb = Shamir.combine(shares)
+        self.done = asyncio.Event()
+        self.pw = None
+        self.shares = dict()
+        self.writers = set()
+        print('PyKMIP SSS: please use CLI to enter shards.')
+        asyncio.run(self.run())
+
+    def __call__(self):
+        return self.pw
+
+    async def run(self):
+        server = await asyncio.start_unix_server(self.connection_handler, path='/tmp/pykmip-sss.sock')
+        async with server:
+            await self.done.wait()
+            for writer in self.writers:
+                try:
+                    await asyncio.wait_for(writer.drain(), timeout=0.1)
+                except:
+                    pass
+            server.abort_clients()
+
+    def combine_shares(self):
+        try:
+            pwb = Shamir.combine(list(self.shares.items()))
+        except:
+            return None
         pw = binascii.hexlify(pwb).decode('ascii')
         self.logger.info("Shards completed.")
         return pw
 
-    def validate_password(self, pw: str):
+    def validate_password(self, pw: str | None) -> bool:
+        if pw is None:
+            return False
         db = sqlcipher.connect(self.db_path) # assuming it has been set
         db.execute(f"pragma key='{pw}';")
         try:
@@ -29,51 +50,40 @@ class Sss_listener:
         except sqlcipher.Error as er:
             return False
         return True
-    
-    def listen(self):
-        wfs = re.compile(r'^\d+,([0-9a-fA-F]+)$') # well-formed shard
-        shares = []
-        i = 0
-        connections = []
+
+    async def connection_handler(self, reader, writer):
+        self.writers.add(writer)
+        writer.write(b'PKMIP-SSS v1\n')
+        well_formed_shard = re.compile(r'^\d+,[0-9a-fA-F]{32}$')
         while True:
-            try:
-                connection, address = self.server.accept()
-                connection.setblocking(False)
-                connections.append(connection)
-            except BlockingIOError:
-                pass
-    
-            for connection in connections:
-                try:
-                    message = connection.recv(4096).strip()
-                    if message == b'commit': 
-                        pw = self.combine_shares(shares)
-                        works = self.validate_password(pw)
-                        if works:
-                            self.server.shutdown(2)
-                            return pw
-                        else:
-                            i = 0
-                            shares = []
-                            connection.send(f"Database access failed due to incorrect shards. Please try again. \n".encode())
-                    else:
-                        try:
-                            if wfs.match(message.decode('ascii')):
-                                print(f'Got shard#{i}.')
-                                sh = message.decode('ascii').split(',')
-                                try:
-                                    shares.append((int(sh[0]), binascii.unhexlify(sh[1])))
-                                    i=i+1
-                                    self.logger.info(
-                                        "Shard #{0} entered.".format(sh[0])
-                                    )
-                                except Exception as e:
-                                    connection.send(f"not a shard of known command or error {e}!\n".encode())
-                                    pass
-                            else:
-                                connection.send(f"Not a shard or a known command!\n".encode())
-                        except Exception as e:
-                            pass
-      
-                except BlockingIOError:
+            writer.write(f'SHARES:{len(self.shares)}\n'.encode())
+            message = await reader.read(4096)
+            message = message.decode('ascii').strip()
+            if message.upper() == 'COMMIT':
+                pw = self.combine_shares()
+                works = self.validate_password(pw)
+                if works:
+                    for writer_ in self.writers:
+                        writer_.write(b'DONE\n')
+                    self.pw = pw
+                    self.done.set()
+                    break
+                else:
+                    self.shares = dict()
                     continue
+            elif well_formed_shard.match(message):
+                idx, share = message.split(',')
+                idx = int(idx)
+                share = binascii.unhexlify(share)
+                old_share = self.shares.get(idx)
+                if share == old_share:
+                    writer.write(f'REPEATED #{idx}\n'.encode())
+                else:
+                    self.shares[idx] = share
+                    writer.write(f'UPDATED #{idx}\n'.encode())
+                    self.logger.info(f'Shard #{idx} entered.')
+            elif not message:
+                self.writers.remove(writer)
+                break
+            else:
+                writer.write('INPUT ERROR\n'.encode())
