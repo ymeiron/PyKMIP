@@ -47,7 +47,8 @@ setuptools.setup(
                   'kmip.demos': ['certs/server.crt', 'certs/server.key']},
     entry_points={
         'console_scripts':[
-            'pykmip-server = kmip.services.server.server:main'
+            'pykmip-server = kmip.services.server.server:main',
+            'pykmip-sss = kmip.services.sss:main'
         ]
     },
     install_requires=[
