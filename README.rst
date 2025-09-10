@@ -44,6 +44,22 @@ The PyKMIP community has various forums and resources you can use:
 * IRC: ``#pykmip`` on ``irc.freenode.net``
 * Twitter: ``@pykmip``
 
+Shamir's secret sharing
+-----------------------
+1. set ``database_password=sss`` (otherwise passwords will be used verbatim)
+2. start the server with ``pykmip-server``
+3. use the ``pykmip-sss`` command and follow the prompt to enter the shares (use ``-t`` to specify the share threshold)
+
+Rekey the backend database
+--------------------------
+1. make sure the server is stopped
+2. enter the following command
+
+   .. code-block:: console
+
+      ./rekey-server.py --database /data/db/pykmip.db -gpg=[u1],[u2],...,[un] -t [threshold, default=2]
+  
+   where [u1]...[un] are the GPG public key files (comma-separated). We need t/n to unlock the database.
 
 .. _`CRUD`: https://en.wikipedia.org/wiki/Create,_read,_update_and_delete
 .. _`OASIS`: https://www.oasis-open.org
