@@ -91,3 +91,6 @@ class RequestPayloadFactory(PayloadFactory):
 
     def _create_signature_verify_payload(self):
         return payloads.SignatureVerifyRequestPayload()
+
+    def _create_add_attribute_payload(self):
+        return payloads.AddAttributeRequestPayload()

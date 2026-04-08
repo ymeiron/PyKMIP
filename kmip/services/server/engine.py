@@ -602,8 +602,15 @@ class KmipEngine(object):
         """
         attr_factory = attribute_factory.AttributeFactory()
         retrieved_attributes = list()
+        
+        get_all = not attr_names
+        for pie_obj in managed_object._custom_attributes:
+            if get_all or pie_obj.attribute_name in attr_names:
+                attribute = attr_factory.create_attribute(pie_obj.attribute_name, pie_obj.attribute_value)
+                retrieved_attributes.append(attribute)
+        attr_names = [attr_name for attr_name in attr_names if not attr_name.startswith('x-')]
 
-        if not attr_names:
+        if get_all:
             attr_names = self._attribute_policy.get_all_attribute_names()
 
         for attribute_name in attr_names:
@@ -654,6 +661,8 @@ class KmipEngine(object):
         """
         Get the attribute value from the kmip.pie managed object.
         """
+        if attr_name.startswith('x-'):
+            raise NotImplementedError('Use _get_attributes_from_managed_object instead')
         if attr_name == 'Unique Identifier':
             return str(managed_object.unique_identifier)
         elif attr_name == 'Name':
@@ -874,6 +883,16 @@ class KmipEngine(object):
         attribute_name = attribute[0]
         attribute_value = attribute[1]
 
+        if attribute_name.startswith('x-'):
+            updated_attribute = False
+            for custom_attribute in managed_object._custom_attributes:
+                if custom_attribute.attribute_name == attribute_name:
+                    setattr(custom_attribute, '_attribute_value', attribute_value.value)
+                    updated_attribute = True
+                    break
+            if not updated_attribute:
+                managed_object._custom_attributes.append(objects.CustomAttribute(attribute_name, attribute_value.value))
+            return
         if self._attribute_policy.is_attribute_multivalued(attribute_name):
             if attribute_name == 'Name':
                 managed_object.names.extend(
@@ -1045,6 +1064,11 @@ class KmipEngine(object):
                 # must be a KMIP 2.0 attribute reference request, so
                 # delete all instances of the attribute.
                 attribute_list[:] = []
+        elif attribute_name.startswith('x-'):
+            self._data_session.query(objects.CustomAttribute).filter(
+                objects.CustomAttribute.mo_uid == managed_object.unique_identifier,
+                objects.CustomAttribute._attribute_name == attribute_name
+            ).delete()
         else:
             # The server does not currently support any single-instance,
             # client deletable attributes.
@@ -1323,6 +1347,8 @@ class KmipEngine(object):
             return self._process_mac(payload)
         elif operation == enums.Operation.SIGN:
             return self._process_sign(payload)
+        elif operation == enums.Operation.ADD_ATTRIBUTE:
+            return self._process_add_attribute(payload)
         else:
             raise exceptions.OperationNotSupported(
                 "{0} operation is not supported by the server.".format(
@@ -2806,6 +2832,9 @@ class KmipEngine(object):
         self._data_session.query(objects.ManagedObject).filter(
             objects.ManagedObject.unique_identifier == unique_identifier
         ).delete()
+        self._data_session.query(objects.CustomAttribute).filter(
+            objects.CustomAttribute.mo_uid == unique_identifier
+        ).delete()
 
         response_payload = payloads.DestroyResponsePayload(
             unique_identifier=attributes.UniqueIdentifier(unique_identifier)
@@ -3226,3 +3255,51 @@ class KmipEngine(object):
         )
 
         return response_payload
+
+    @_kmip_version_supported('1.0')
+    def _process_add_attribute(self, payload):
+        self._logger.info("Processing operation: AddAttribute")
+
+        unique_identifier = self._id_placeholder
+        if payload.unique_identifier:
+            unique_identifier = payload.unique_identifier
+
+        managed_object = self._get_object_with_access_controls(
+            unique_identifier,
+            enums.Operation.ADD_ATTRIBUTE
+        )
+
+        attribute_name = payload.attribute.attribute_name.value
+        attribute_value = payload.attribute.attribute_value
+
+        existing_attribute = self._get_attributes_from_managed_object(
+            managed_object,
+            [attribute_name]
+        )
+        if len(existing_attribute) > 0:
+            raise exceptions.KmipError(
+                status=enums.ResultStatus.OPERATION_FAILED,
+                reason=enums.ResultReason.INVALID_FIELD,
+                message=(
+                    "The '{}' attribute is already set on the managed "
+                    "object. It cannot be added again.".format(attribute_name)
+                )
+            )
+
+        self._set_attribute_on_managed_object(
+            managed_object,
+            (attribute_name, attribute_value)
+        )
+        
+        self._data_session.commit()
+
+        attr_factory = attribute_factory.AttributeFactory()
+        attribute = attr_factory.create_attribute(
+            attribute_name,
+            attribute_value.value
+        )
+
+        return payloads.AddAttributeResponsePayload(
+            unique_identifier=unique_identifier,
+            attribute=attribute
+        )

@@ -61,6 +61,16 @@ Rekey the backend database
   
    where [u1]...[un] are the GPG public key files (comma-separated). We need t/n to unlock the database.
 
+Custom attributes
+-----------------
+This implementation of the *server* supports KMIP 1.4-style custom attributes (starting with `x-`), with the following caveats:
+
+1. Custom attribute value must be a text string
+2. Multiple instances are not permitted
+3. The AddAttribute operation *only* supports custom attributes
+4. The Locate operation does not support custom attributes
+5. ID placeholder not supported (must specify unique identifier at every request)
+
 .. _`CRUD`: https://en.wikipedia.org/wiki/Create,_read,_update_and_delete
 .. _`OASIS`: https://www.oasis-open.org
 .. _`OASIS KMIP Technical Committee`: https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=kmip
