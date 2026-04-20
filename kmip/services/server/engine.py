@@ -90,9 +90,13 @@ class KmipEngine(object):
 
         self._cryptography_engine = engine.CryptographyEngine()
 
-        self.database_path = 'sqlite+pysqlcipher://:{database_password}@/{database_path}'.format(database_password = database_password, database_path = database_path)
         if not database_path:
-            self.database_path = 'sqlite+pysqlcipher://:{database_password}@//tmp/pykmip.database'.format(database_password = database_password)
+            database_path = '/tmp/pykmip.database'
+
+        if database_password:
+            self.database_path = f'sqlite+pysqlcipher://:{database_password}@/{database_path}'
+        else:
+            self.database_path = f'sqlite:///{database_path}'
 
         self._data_store = sqlalchemy.create_engine(
             self.database_path,

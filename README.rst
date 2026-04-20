@@ -44,11 +44,15 @@ The PyKMIP community has various forums and resources you can use:
 * IRC: ``#pykmip`` on ``irc.freenode.net``
 * Twitter: ``@pykmip``
 
-Shamir's secret sharing
------------------------
-1. set ``database_password=sss`` (otherwise passwords will be used verbatim)
-2. start the server with ``pykmip-server``
-3. use the ``pykmip-sss`` command and follow the prompt to enter the shares (use ``-t`` to specify the share threshold)
+Unsealing methods
+-----------------
+The ``unseal_method`` configuration parameter can take the following values:
+
+* ``password``: the database password has to be explicitly given in the configuration file in ``database_password``
+* ``password-file``: the database password has to be found in a file, the path has to be given in the configuration file in ``password_path``
+* ``sss-interactive``: the database password shares will be added later, the server will hang until this is complete. Use the ``pykmip-sss`` commandline utility and follow the prompt (you can use ``-t`` to specify the share threshold)
+
+If not specified, the SQLite database will not use encryption.
 
 Rekey the backend database
 --------------------------

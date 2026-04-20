@@ -18,7 +18,6 @@ import os
 import six
 from six.moves import configparser
 from kmip.core import exceptions
-from kmip.services.sss import Sss
 
 class KmipServerConfig(object):
     """
@@ -52,14 +51,12 @@ class KmipServerConfig(object):
             'enable_tls_client_auth',
             'tls_cipher_suites',
             'logging_level',
+            'unseal_method',
             'database_password',
+            'password_file',
             'enable_crl_check'
         ]
 
-    def _get_shards(self):
-        pw = Sss(self.settings['database_path'], self._logger)()
-        return pw
-        
     def set_setting(self, setting, value):
         """
         Set a specific setting value.
@@ -76,11 +73,6 @@ class KmipServerConfig(object):
             ConfigurationError: Raised if the setting is not supported or if
                 the setting value is invalid.
         """
-        if setting not in self._expected_settings + self._optional_settings:
-            raise exceptions.ConfigurationError(
-                "Setting '{0}' is not supported.".format(setting)
-            )
-
         if setting == 'hostname':
             self._set_hostname(value)
         elif setting == 'port':
@@ -101,10 +93,16 @@ class KmipServerConfig(object):
             self._set_tls_cipher_suites(value)
         elif setting == 'logging_level':
             self._set_logging_level(value)
+        elif setting == 'database_path':
+            self._set_database_path(value)
         elif setting == 'database_password':
             self._set_database_password(value)
+        elif setting == 'password_file':
+            self._set_password_file(value)
         else:
-            self._set_database_path(value)
+            raise exceptions.ConfigurationError(
+                "Setting '{0}' is not supported.".format(setting)
+            )
 
     def load_settings(self, path):
         """
@@ -191,12 +189,42 @@ class KmipServerConfig(object):
             )
         if parser.has_option('server', 'database_path'):
             self._set_database_path(parser.get('server', 'database_path'))
+        if parser.has_option('server', 'unseal_method'):
+            self._set_unseal_method(parser.get('server', 'unseal_method'))
         if parser.has_option('server', 'database_password'):
             self._set_database_password(parser.get('server', 'database_password'))
+        if parser.has_option('server', 'password_file'):
+            self._set_password_file(parser.get('server', 'password_file'))
         if parser.has_option('server', 'enable_crl_check'):
             self._set_enable_crl_check(
                 parser.getboolean('server', 'enable_crl_check')
             )
+        database_password = self.settings.get('database_password')
+        password_file = self.settings.get('password_file')
+        match self.settings.get('unseal_method'):
+            case 'password':
+                if database_password is None:
+                    raise exceptions.ConfigurationError(
+                        'unseal_method is set to "password", but database_password is not set.'
+                    )
+                if not password_file is None:
+                    raise exceptions.ConfigurationError(
+                        'unseal_method is set to "password", but password_file is set.'
+                    )
+            case 'password-file':
+                if not database_password is None:
+                    raise exceptions.ConfigurationError(
+                        'unseal_method is set to "password-file", but database_password is set.'
+                    )
+                if password_file is None:
+                    raise exceptions.ConfigurationError(
+                        'unseal_method is set to "password-file", but password_file is not set.'
+                    )
+            case _:
+                if database_password or password_file:
+                    raise exceptions.ConfigurationError(
+                        'A password or password file is specified but this is not expected given the value of unseal_method.'
+                    )
 
     def _set_hostname(self, value):
         if isinstance(value, six.string_types):
@@ -362,17 +390,36 @@ class KmipServerConfig(object):
                 "SQLite database file."
             )
 
+    def _set_unseal_method(self, value):
+        unseal_method_options = [None, 'password', 'password-file', 'password-interactive', 'sss-interactive']
+        if not value in unseal_method_options:
+            raise exceptions.ConfigurationError(
+                "Unknown unseal method."
+            )
+        if value == 'password-interactive':
+            raise exceptions.ConfigurationError(
+                '"password-interactive" unseal method not implemented yet.'
+            )
+        self.settings['unseal_method'] = value
+
     def _set_database_password(self, value):
         if not value:
             self.settings['database_password'] = None
         elif isinstance(value, six.string_types):
-            if value.encode() == b'sss':
-              self.settings['database_password'] = self._get_shards()
-            else:
-              self.settings['database_password'] = value
+            self.settings['database_password'] = value
         else:
             raise exceptions.ConfigurationError(
                 "The database password is an invalid string."
+            )
+
+    def _set_password_file(self, value):
+        if not value:
+            self.settings['password_file'] = None
+        elif isinstance(value, six.string_types):
+            self.settings['password_file'] = value
+        else:
+            raise exceptions.ConfigurationError(
+                "The password file is an invalid string."
             )
 
     def _set_enable_crl_check(self, value):

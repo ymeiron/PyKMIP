@@ -34,6 +34,8 @@ from kmip.services.server import engine
 from kmip.services.server import monitor
 from kmip.services.server import session
 
+from kmip.services.sss import Sss
+
 
 class KmipServer(object):
     """
@@ -62,7 +64,7 @@ class KmipServer(object):
             logging_level=None,
             live_policies=False,
             database_path=None,
-            database_password='pykmip',
+            unseal_method=None,
             enable_crl_check=None
     ):
         """
@@ -129,8 +131,10 @@ class KmipServer(object):
                 to False.
             database_path (string): The path to the server's SQLite database
                 file. Optional, defaults to None.
-            database_password (string): Password to encrypt the SQLite database
-                file. Optional, defaults to "pykmip".
+            unseal_method (string): The method used to unseal the database.
+                Accepted values are: 'password', 'password-file',
+                'password-interactive', 'sss-interactive', None. Optional,
+                defaults to None.
         """
         self._logger = logging.getLogger('kmip.server')
         self._setup_logging(log_path)
@@ -149,7 +153,7 @@ class KmipServer(object):
             tls_cipher_suites,
             logging_level,
             database_path,
-            database_password,
+            unseal_method,
             enable_crl_check
         )
         self.live_policies = live_policies
@@ -201,7 +205,7 @@ class KmipServer(object):
             tls_cipher_suites=None,
             logging_level=None,
             database_path=None,
-            database_password="pykmip",
+            unseal_method=None,
             enable_crl_check=None
     ):
         if path:
@@ -235,6 +239,10 @@ class KmipServer(object):
             self.config.set_setting('logging_level', logging_level)
         if database_path:
             self.config.set_setting('database_path', database_path)
+        if unseal_method:
+            self.config.set_setting('unseal_method', unseal_method)
+        if enable_crl_check:
+            self.config.set_setting('enable_crl_check', enable_crl_check)
 
     def start(self):
         """
@@ -266,11 +274,23 @@ class KmipServer(object):
         signal.signal(signal.SIGTERM, interrupt_handler)
 
         self.policy_monitor.start()
+        
+        database_path = self.config.settings.get('database_path', '/tmp/pykmip.database')
+        match self.config.settings.get('unseal_method'):
+            case None:
+                database_password = None
+            case 'password':
+                database_password = self.config.settings['database_password']
+            case 'password-file':
+                with open(self.config.settings['password_file'], 'r') as f:
+                    database_password = f.read().strip()
+            case 'sss-interactive':
+                database_password = Sss(database_path, self._logger)()
 
         self._engine = engine.KmipEngine(
             policies=self.policies,
-            database_path=self.config.settings.get('database_path'),
-            database_password=self.config.settings.get('database_password')
+            database_path=database_path,
+            database_password=database_password
         )
 
         self._logger.info("Starting server socket handler.")
