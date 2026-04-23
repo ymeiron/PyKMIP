@@ -51,10 +51,7 @@ class CryptographyEngine(api.CryptographicEngine):
         self._symmetric_key_algorithms = {
             enums.CryptographicAlgorithm.TRIPLE_DES: algorithms.TripleDES,
             enums.CryptographicAlgorithm.AES:        algorithms.AES,
-            enums.CryptographicAlgorithm.BLOWFISH:   algorithms.Blowfish,
             enums.CryptographicAlgorithm.CAMELLIA:   algorithms.Camellia,
-            enums.CryptographicAlgorithm.CAST5:      algorithms.CAST5,
-            enums.CryptographicAlgorithm.IDEA:       algorithms.IDEA,
             enums.CryptographicAlgorithm.RC4:        algorithms.ARC4
         }
         self._asymmetric_key_algorithms = {
