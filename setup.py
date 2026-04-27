@@ -48,7 +48,8 @@ setuptools.setup(
     entry_points={
         'console_scripts':[
             'pykmip-server = kmip.services.server.server:main',
-            'pykmip-sss = kmip.services.sss:main'
+            'pykmip-sss = kmip.services.sss:main',
+            'ttlv-tool = kmip.services.ttlv_tool:main'
         ]
     },
     install_requires=[

@@ -75,6 +75,13 @@ This implementation of the *server* supports KMIP 1.4-style custom attributes (s
 4. The Locate operation does not support custom attributes
 5. ID placeholder not supported (must specify unique identifier at every request)
 
+TTLV tool
+---------
+The ``ttlv-tool`` utility converts between between human readable XML and the TTLV encoding that used for KMIP client-server communication. The utility has two commands:
+
+* ``encode``: input is XML (from stdin, or a file specified with the ``-i`` option) and output is binary TTLV. The ``-f`` option can be specified to produce hex or base64 encoded TTLV output for debugging purposes. Output goes to stdout by default unless a file path is specified with the ``-o`` option.
+* ``decode``: input is binary TTLV (from stdin, or a file specified with the ``-i`` option) and output is XML. Output goes to stdout by default unless a file path is specified with the ``-o`` option.
+
 .. _`CRUD`: https://en.wikipedia.org/wiki/Create,_read,_update_and_delete
 .. _`OASIS`: https://www.oasis-open.org
 .. _`OASIS KMIP Technical Committee`: https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=kmip
