@@ -1052,7 +1052,7 @@ class AttributePolicy(object):
                 True,  # Only for server-created attributes
                 True,  # Only for client-created attributes
                 True,  # Only for client-created attributes
-                True,
+                False,
                 (
                     enums.Operation.CREATE,
                     enums.Operation.CREATE_KEY_PAIR,
@@ -1115,6 +1115,8 @@ class AttributePolicy(object):
             bool: True if the attribute is supported by the current KMIP
                 version. False otherwise.
         """
+        if attribute.startswith('x-'):
+            return True
         if attribute not in self._attribute_rule_sets.keys():
             return False
 
@@ -1152,6 +1154,8 @@ class AttributePolicy(object):
             bool: True if the attribute can be deleted by the client. False
                 otherwise.
         """
+        if attribute.startswith('x-'):
+            return True
         rule_set = self._attribute_rule_sets.get(attribute)
         return rule_set.deletable_by_client
 
@@ -1166,6 +1170,8 @@ class AttributePolicy(object):
             bool: True if the attribute can be modified by the client. False
                 otherwise.
         """
+        if attribute.startswith('x-'):
+            return True
         rule_set = self._attribute_rule_sets.get(attribute)
         return rule_set.modifiable_by_client
 
@@ -1182,6 +1188,8 @@ class AttributePolicy(object):
             bool: True if the attribute is applicable to the object type.
                 False otherwise.
         """
+        if attribute.startswith('x-'):
+            return True
         # TODO (peterhamilton) Handle applicability between certificate types
         rule_set = self._attribute_rule_sets.get(attribute)
         if object_type in rule_set.applies_to_object_types:
@@ -1197,6 +1205,8 @@ class AttributePolicy(object):
             attribute (string): The name of the attribute
                 (e.g., 'State'). Required.
         """
+        if attribute.startswith('x-'):
+            return False
         # TODO (peterhamilton) Handle multivalue swap between certificate types
         rule_set = self._attribute_rule_sets.get(attribute)
         return rule_set.multiple_instances_permitted

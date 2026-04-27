@@ -101,6 +101,12 @@ class ManagedObject(sql.Base):
         order_by="ManagedObjectName.id"
     )
     names = association_proxy('_names', 'name')
+    _custom_attributes = sqlalchemy.orm.relationship(
+        "CustomAttribute",
+        back_populates="mo",
+        cascade="all, delete-orphan",
+        order_by="CustomAttribute.id"
+    )
     operation_policy_name = Column(
         'operation_policy_name',
         String(50),
@@ -1964,3 +1970,51 @@ class ObjectGroup(sql.Base):
             return not (self == other)
         else:
             return NotImplemented
+
+class CustomAttribute(sql.Base):
+    __tablename__ = "custom_attributes"
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+    mo_uid = Column("mo_uid", Integer, ForeignKey("managed_objects.uid"))
+    _attribute_name = sqlalchemy.Column(
+        "attribute_name",
+        sqlalchemy.String
+    )
+    _attribute_value = sqlalchemy.Column(
+        "attribute_value",
+        sqlalchemy.String
+    )
+    mo = sqlalchemy.orm.relationship("ManagedObject", back_populates="_custom_attributes")
+    def __init__(self, attribute_name, attribute_value):
+        """
+        Create a custom attribute.
+
+        Args:
+            attribute_name (str): A string specifying the attribute name. Required.
+            attribute_value (str): A string specifying the attribute value. Required.
+        """
+        super(CustomAttribute, self).__init__()
+
+        self.attribute_name = attribute_name
+        self.attribute_value = attribute_value
+
+    @property
+    def attribute_name(self):
+        return self._attribute_name
+
+    @attribute_name.setter
+    def attribute_name(self, value):
+        if (value is None) or (isinstance(value, six.string_types)):
+            self._attribute_name = value
+        else:
+            raise TypeError("The attribution name must be a string.")
+
+    @property
+    def attribute_value(self):
+        return self._attribute_value
+
+    @attribute_value.setter
+    def attribute_value(self, value):
+        if (value is None) or (isinstance(value, six.string_types)):
+            self._attribute_value = value
+        else:
+            raise TypeError("The attribution value must be a string.")
