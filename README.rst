@@ -33,7 +33,7 @@ You can install PyKMIP via ``pip``:
 
     $ pip install pykmip
 
-See `Installation`_ for more information.
+See `Installation`_ for more information. Docker workflow also available, see below.
 
 Community
 ---------
@@ -81,6 +81,64 @@ The ``ttlv-tool`` utility converts between between human readable XML and the TT
 
 * ``encode``: input is XML (from stdin, or a file specified with the ``-i`` option) and output is binary TTLV. The ``-f`` option can be specified to produce hex or base64 encoded TTLV output for debugging purposes. Output goes to stdout by default unless a file path is specified with the ``-o`` option.
 * ``decode``: input is binary TTLV (from stdin, or a file specified with the ``-i`` option) and output is XML. Output goes to stdout by default unless a file path is specified with the ``-o`` option.
+
+Docker
+------
+
+Follow these instructions to use the SciNet-modified PyKMIP (+ SLUGS) in Docker.
+
+Build
+^^^^^
+
+.. code-block:: console
+
+  docker build --tag=pykmip -f docker/Dockerfile .
+
+Data volume
+^^^^^^^^^^^
+
+To run the container you must mount a writable volume on the ``/data`` directory. That has to have the following subdirectories and files:
+
+::
+
+    data
+    ├── clients
+    │   └── user_group_mapping.csv
+    └── server
+        ├── ca-cert.pem
+        ├── server-cert.pem
+        └── server-privkey.pem
+
+The ``server`` subdirectory must include the signing CA's certificate (that is used to sign the server and all client certificates) as well as the server's certificate and private key. You can use the ``bootstrap.sh`` to quickly create these.
+
+Additionally, the data volume will contain a ``db`` and ``log`` subdirectories (these will be created if they do not already exist, unless the database path or log dir is specified using environment variables, see below). The ``db`` subdirectory will contain the database file, ``pykmip.db``.
+
+
+Environment variables
+^^^^^^^^^^^^^^^^^^^^^
+
+* ``PYKMIP_LOG_DIR`` overrides the default log directory location for both PyKMIP and SLUGS (``/data/log``)
+* ``SLUGS_USER_GROUP_MAPPING`` overrides the default user group-mapping file for SLUGS (``/data/clients/user_group_mapping.csv``)
+* Any other environment prefixed with ``PYKMIP_`` will override the corresponding PyKMIP server configuration in ``server.conf``, or append it if the configuration doesn't exist. The default configuration file is found in ``docker/config/server.conf`` in this repository.
+
+Run
+^^^
+
+For example:
+
+.. code-block:: console
+
+  docker run --rm \
+    -p 5696:5696 \
+    -v /home/user/pykmip-data/:/data \
+    -e PYKMIP_UNSEAL_METHOD=password \
+    -e PYKMIP_DATABASE_PASSWORD=123456 \
+    pykmip:latest
+
+You can add the ``--noslugs`` option if you don't need SLUGS.
+
+If the unsealing method is interactive, use ``docker exec`` to run the command in an already running container.
+
 
 .. _`CRUD`: https://en.wikipedia.org/wiki/Create,_read,_update_and_delete
 .. _`OASIS`: https://www.oasis-open.org
